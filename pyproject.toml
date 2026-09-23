@@ -1,0 +1,16 @@
+[project]
+name = "seds-celestia-assignments-2026"
+version = "0.1.0"
+description = "SEDS Celestia Simulations inductions 2026: one folder per week, plain scripts."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "pygame>=2.6.1",
+]
+
+# This repo is a collection of standalone scripts, not an installable
+# package. Without this, `uv run` tries to build and install the project
+# and fails because there is no src/<package>/__init__.py.
+[tool.uv]
+package = false
