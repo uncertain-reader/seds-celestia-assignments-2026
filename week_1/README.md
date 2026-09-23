@@ -151,3 +151,95 @@ uv run "week 1/roundboundary.py"
 
 Run from the repo root. See the [root README](../README.md) for first-time
 setup (clone, install `uv`, `uv sync`).
+
+## Assignment brief
+
+The single ball behaves the way Part B describes: the path curves, it never
+escapes at normal speeds, and with `e_w < 1` each bounce is lower until it
+settles at the bottom. The two-ball collision only changes velocity along the
+line joining the centres, so a glancing hit barely deflects while a head-on hit
+swaps the speeds, which matches the equations.
+
+For many balls I used the double loop over every pair. It works, but the number
+of pairs grows like `N^2`, so the frame rate drops quickly as N goes up. The
+pair check is the bottleneck, not the drawing. Broadcasting with numpy would
+remove the Python loop and is the obvious next step.
+
+## Answers
+
+### Question 1
+
+> A fast enough ball can end up outside the arena without the wall bounce ever
+> being detected. Why does the detection fail, and which of dt, |v|, rho, R and
+> g decide whether it happens?
+
+The wall is only checked once per frame. In between, the ball does not really
+move, it teleports from where it was to where it is next, a distance of
+`|v| * dt`. Nothing looks at it during that jump.
+
+So the ball can only be caught if one of those frames happens to land while it
+is touching the wall. That zone is not very wide. The centre counts as "at the
+wall" while it sits between `R - rho` and `R + rho`, so the zone is about one
+ball across, `2 * rho`. If a single jump is longer than that, the ball can go
+from clearly inside to clearly outside without ever being seen in between, and
+the `distance + rho > R` test is never true on any frame it is actually checked.
+
+Which of the five matter:
+
+- `dt` and `|v|` matter directly, because their product is the jump. Halving
+  the timestep does the same thing as halving the speed.
+- `rho` matters directly too, because it is the size of the zone you are trying
+  to hit. A bigger ball is harder to miss.
+- `g` and `R` do not show up in the condition at all, but they decide how fast
+  the ball gets. Falling from the top of the arena gives about
+  `|v| = sqrt(2 g R)`, so stronger gravity or a bigger arena means a faster ball
+  at the bottom, which is exactly where it is most likely to slip through.
+
+So it comes down to whether `|v| * dt` is bigger than the ball. `g` and `R`
+only matter through how big `|v|` ends up.
+
+### Question 2
+
+> Set e_w = 1, so that no energy is lost at a bounce, and let the ball run for
+> a few thousand steps. Does the peak height stay put, creep upward, or decay?
+> Gravity and the bounce rule are the only things acting, so if it changes at
+> all, where is that energy coming from?
+
+Yes, it decays, but it depends on how the ball hits the wall.
+
+When I drop the ball straight down from the centre it looks fine. It keeps
+coming back up to the same height and I could not see it change even after
+leaving it for a long time. But if I give it some sideways speed so it hits
+the wall at an angle, the bounces slowly get lower and lower. Eventually it
+stops bouncing at all and just rolls around the bottom of the arena, even
+though with `e_w = 1` it is not supposed to lose anything.
+
+Here is why I think this happens.
+
+The bounce rule on its own cannot be the reason. Flipping the velocity only
+changes its direction, not how fast the ball is going, so it leaves the wall
+at the same speed it arrived. Gravity cannot be the reason either, since
+whatever it takes on the way up it gives back on the way down. So the loss
+must be coming from the way the program handles the collision, not from the
+physics we wrote down.
+
+What I think is going on is that the collision is always caught a little too
+late. The ball is only checked once per frame, so by the time we notice it has
+hit the wall it has already gone partly inside. We then do two things to fix
+it: push it back out, and flip its velocity. But neither of those is quite
+what would have happened in real life. The real bounce should have happened a
+moment earlier, at a slightly different spot, with a slightly different
+velocity. Every bounce is therefore a bit wrong, and the errors do not have to
+cancel out.
+
+In the straight drop the ball hits the floor head on every time, so the error
+is the same every bounce, and it seems to average out to nothing, which is why
+it looks stable. When the ball hits at an angle it mostly skims along the
+curved wall instead. Then it is being caught and corrected on nearly every
+frame, and the small errors pile up in one direction, so it keeps losing
+height until it is just rolling.
+
+So the energy is not coming from gravity or from the bounce rule. It is being
+lost by the program catching collisions late and correcting them by hand. I
+would expect that checking more often, so the ball is caught closer to the
+wall, would make the decay slower.
