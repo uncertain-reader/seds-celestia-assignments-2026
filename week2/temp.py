@@ -127,7 +127,69 @@ class SandSim:
         that already moved. Copy the grid before the loop, read from the
         copy, and write the result into the live grid (or vice versa).
         """
-        raise NotImplementedError("implement the physics, then delete this line")
+        G = self._types
+        Gp = G.copy()
+        H, W = self.height, self.width
+        cols = _rng.permutation(W)
+
+        def is_empty(yy, xx):
+            if yy < 0 or yy >= H or xx < 0 or xx >= W:
+                return False
+            # check Gp not G, otherwise grains stack in mid air for a tick
+            return Gp[yy, xx] == Material.EMPTY
+
+        def move_to(y, x, yy, xx):
+            Gp[yy, xx] = Gp[y, x]
+            Gp[y, x] = 0
+
+        def try_fall(y, x):
+            # straight down first
+            if is_empty(y + 1, x):
+                move_to(y, x, y + 1, x)
+                return True
+            # then the diagonals
+            left = is_empty(y + 1, x - 1)
+            right = is_empty(y + 1, x + 1)
+            if left and right:
+                if _rng.random() < 0.5:
+                    move_to(y, x, y + 1, x - 1)
+                else:
+                    move_to(y, x, y + 1, x + 1)
+                return True
+            if left:
+                move_to(y, x, y + 1, x - 1)
+                return True
+            if right:
+                move_to(y, x, y + 1, x + 1)
+                return True
+            return False
+
+        for y in range(H - 1, -1, -1):
+            for x in cols:
+                m = G[y, x]
+                if m == Material.EMPTY:
+                    continue
+
+                if m == Material.SAND:
+                    try_fall(y, x)
+
+                elif m == Material.WATER:
+                    moved = try_fall(y, x)
+                    if not moved:
+                        # couldn't fall at all -> spread sideways
+                        left = is_empty(y, x - 1)
+                        right = is_empty(y, x + 1)
+                        if left and right:
+                            if _rng.random() < 0.5:
+                                move_to(y, x, y, x - 1)
+                            else:
+                                move_to(y, x, y, x + 1)
+                        elif left:
+                            move_to(y, x, y, x - 1)
+                        elif right:
+                            move_to(y, x, y, x + 1)
+
+        self._types = Gp
 
     # ------------------------------------------------------------------ #
     # Rendering (boilerplate — nothing to do here)
